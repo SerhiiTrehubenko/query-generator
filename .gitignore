@@ -12,3 +12,5 @@
 .classpath
 .project
 desktop.ini
+src/main/resources/sql/
+*.properties
