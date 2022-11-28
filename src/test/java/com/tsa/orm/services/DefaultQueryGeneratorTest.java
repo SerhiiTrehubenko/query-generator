@@ -157,7 +157,7 @@ class DefaultQueryGeneratorTest {
     @DisplayName("Test insert(), when @Columns, @Table and @Entity are present.")
     @Test
     void testInsertColumnTableEntityAnnotationsArePresent() {
-        String query = "INSERT INTO guest_table (guest_name, guest_password, guest_salary) VALUE ('Hello', 'null', 544.88);";
+        String query = "INSERT INTO guest_table (guest_name, guest_password, guest_salary) VALUES ('Hello', 'null', 544.88);";
         Guest guest = createGuest();
         assertEquals(query, queryGenerator.insert(guest));
     }
@@ -197,7 +197,7 @@ class DefaultQueryGeneratorTest {
         String queryFindAll = "SELECT id, name, password, salary FROM submyuser;";
         String queryFindById = "SELECT id, name, password, salary FROM submyuser WHERE id = 10;";
         String queryDeleteById = "DELETE  FROM submyuser WHERE id = 10;";
-        String queryInsert = "INSERT INTO submyuser (password, name, salary) VALUE ('126587', 'Mike', 1555.45);";
+        String queryInsert = "INSERT INTO submyuser (password, name, salary) VALUES ('126587', 'Mike', 1555.45);";
         String queryUpdate = "UPDATE submyuser SET password='126587', name='Mike', salary=1555.45 WHERE id=25;";
 
         SubMyUser subUser = createSubUser();
@@ -222,7 +222,7 @@ class DefaultQueryGeneratorTest {
         String queryFindAll = "SELECT guest_id, guest_name, guest_password, guest_salary, subguest_address FROM subguest;";
         String queryFindById = "SELECT guest_id, guest_name, guest_password, guest_salary, subguest_address FROM subguest WHERE guest_id = 60;";
         String queryDeleteById = "DELETE  FROM subguest WHERE guest_id = 60;";
-        String queryInsert = "INSERT INTO subguest (subguest_address, guest_name, guest_password, guest_salary) VALUE ('Dnipro', 'Oleg', 'password', 544.88);";
+        String queryInsert = "INSERT INTO subguest (subguest_address, guest_name, guest_password, guest_salary) VALUES ('Dnipro', 'Oleg', 'password', 544.88);";
         String queryUpdate = "UPDATE subguest SET subguest_address='Dnipro', guest_name='Oleg', guest_password='password', guest_salary=544.88 WHERE guest_id=50;";
 
         SubGuest subGuest = createSubGuest();
@@ -233,7 +233,7 @@ class DefaultQueryGeneratorTest {
         String resultInsert = queryGenerator.insert(subGuest);
         String resultUpdate = queryGenerator.update(subGuest);
 
-        //assertEquals(queryFindAll, resultFindAll);
+        assertEquals(queryFindAll, resultFindAll);
         assertEquals(queryFindById, resultFindById);
         assertEquals(queryDeleteById, resultDeleteById);
         assertEquals(queryInsert, resultInsert);
