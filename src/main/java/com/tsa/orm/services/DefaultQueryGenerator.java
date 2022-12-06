@@ -2,26 +2,27 @@ package com.tsa.orm.services;
 
 import com.tsa.orm.annotation.Column;
 import com.tsa.orm.annotation.Entity;
+import com.tsa.orm.annotation.Id;
 import com.tsa.orm.annotation.Table;
 import com.tsa.orm.interfaces.QueryGenerator;
 
 import java.io.Serializable;
 import java.lang.reflect.Field;
 import java.util.*;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DefaultQueryGenerator implements QueryGenerator {
     private static final String SELECT = "SELECT ";
-    private static final String DELETE = "DELETE ";
+    private static final String DELETE = "DELETE";
     private static final String FROM = " FROM ";
     private static final String WHERE = " WHERE ";
     private static final String SEMICOLON = ";";
-    private static final String[] ID = {"id_", "id", "_id"};
 
-    public DefaultQueryGenerator() {
-    }
+    /**
+     * Entity is allowed to have only one @Id
+     */
+    private final List<String> listOfIds = new ArrayList<>();
 
     @Override
     public String findAll(Class<?> type) {
@@ -86,35 +87,44 @@ public class DefaultQueryGenerator implements QueryGenerator {
             return clazz.getSimpleName().toLowerCase();
         }
     }
+
     private Class<?> getClass(Object object) {
         return object instanceof Class<?> ? (Class<?>) object : object.getClass();
     }
+
     String getColumnNameConsideringAnnotation(Field field) {
+        Id idColumn = field.getAnnotation(Id.class);
         Column columnNameAnnotation = field.getAnnotation(Column.class);
+        String columnName;
         if (columnNameAnnotation != null) {
-            return columnNameAnnotation.name();
+            columnName = columnNameAnnotation.name();
+        } else if (idColumn != null) {
+            String name = idColumn.name();
+            columnName = name.equals("null") ? field.getName() : name;
+            listOfIds.add(columnName);
         } else {
-            return field.getName();
+            columnName = field.getName();
         }
+        return columnName;
     }
 
     Map<String, Object> getMapOfColumnsAndValues(Object object) {
-
-        Map<String, Object> map = new HashMap<>();
+        listOfIds.clear();
         Deque<Class<?>> listOfSuperClasses = new ArrayDeque<>();
-        getSuperClassesFromHierarchy(object.getClass(), listOfSuperClasses);
+        enrichWithSuperClassesFromHierarchy(object.getClass(), listOfSuperClasses);
 
-        listOfSuperClasses.forEach(clazz -> {
-            Field[] fields = clazz.getDeclaredFields();
-            for (Field field : fields) {
-                field.setAccessible(true);
-                try {
-                    map.put(getColumnNameConsideringAnnotation(field), field.get(object));
-                } catch (IllegalAccessException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-        });
+        Map<String, Object> map = listOfSuperClasses.stream()
+                .map(Class::getDeclaredFields)
+                .flatMap(Stream::of)
+                .peek(field -> field.setAccessible(true))
+                .collect(Collectors.toMap(this::getColumnNameConsideringAnnotation, field -> {
+                    try {
+                        return field.get(object);
+                    } catch (IllegalAccessException e) {
+                        throw new RuntimeException(e);
+                    }
+                }));
+        ensureIdPresent();
         return map;
     }
 
@@ -132,57 +142,57 @@ public class DefaultQueryGenerator implements QueryGenerator {
     }
 
     String getColumns(Class<?> type) {
-        StringJoiner collectFieldNames = new StringJoiner(", ");
-        List<String> Columns = getListOfColumnsFromHierarchy(type);
+        listOfIds.clear();
+        List<String> columns = getListOfColumnsFromHierarchy(type);
+        ensureIdPresent();
+        return String.join(", ", columns);
+    }
 
-        Columns.forEach(collectFieldNames::add);
-
-        return collectFieldNames.toString();
+    private void ensureIdPresent() {
+        int numberOfIds = listOfIds.size();
+        if (numberOfIds != 1) {
+            throw new IllegalArgumentException("The Entity should have only one id, the current Entity has: " + numberOfIds);
+        }
     }
 
     List<String> getListOfColumnsFromHierarchy(Class<?> type) {
-        List<String> stringList = new ArrayList<>();
+        List<String> listOfColumns;
         Deque<Class<?>> listOfSuperClasses = new ArrayDeque<>();
-        getSuperClassesFromHierarchy(type, listOfSuperClasses);
-        listOfSuperClasses.forEach(clazz ->
-                stringList.addAll(getListOfColumnsFromOneClass(clazz))
-        );
-        return stringList;
+        enrichWithSuperClassesFromHierarchy(type, listOfSuperClasses);
+
+        listOfColumns = listOfSuperClasses.stream()
+                .map(this::getListOfColumnsFromOneClass)
+                .collect(ArrayList::new, ArrayList::addAll, ArrayList::addAll);
+
+        return listOfColumns;
     }
 
-    void getSuperClassesFromHierarchy(Class<?> type, Deque<Class<?>> dequeue) {
+    void enrichWithSuperClassesFromHierarchy(Class<?> type, Deque<Class<?>> dequeue) {
         if (type != null && type != Object.class) {
             dequeue.addFirst(type);
-            getSuperClassesFromHierarchy(type.getSuperclass(), dequeue);
+            enrichWithSuperClassesFromHierarchy(type.getSuperclass(), dequeue);
         }
     }
 
-    private String getQuery(String... arg) {
-        StringBuilder stringBuilder = new StringBuilder();
-        for (String s : arg) {
-            stringBuilder.append(s);
-        }
-        return stringBuilder.toString();
+    private String getQuery(String... args) {
+        return String.join("", args);
     }
 
-    Long parseId(Serializable id) {
+    String parseId(Serializable id) {
         requireNotNull(id);
-        Long incomeId = null;
-        Class<?> idClassName = id.getClass();
-        if (CharSequence.class.isAssignableFrom(idClassName)) {
-            Matcher matcher = Pattern.compile("\\d+").matcher(id.toString());
-            while (matcher.find()) {
-                String result = matcher.group();
-                incomeId = Long.parseLong(result);
-                if (!result.isEmpty()) {
-                    break;
-                }
+        String incomeId = null;
+        Class<?> classOfId = id.getClass();
+        if (CharSequence.class.isAssignableFrom(classOfId)) {
+            try {
+                Long castedId = Long.parseLong(String.valueOf(id));
+                incomeId = String.valueOf(castedId);
+            } catch (NumberFormatException e) {
+                incomeId = "'" + id + "'";
             }
-        } else if (Integer.class.isAssignableFrom(idClassName)) {
-            Integer integer = (Integer) id;
-            incomeId = integer.longValue();
-        } else if (Long.class.isAssignableFrom(idClassName)) {
-            incomeId = (Long) id;
+        } else if (Integer.class.isAssignableFrom(classOfId)) {
+            incomeId = String.valueOf(id);
+        } else if (Long.class.isAssignableFrom(classOfId)) {
+            incomeId = String.valueOf(id);
         }
         if (incomeId == null) {
             throw new IllegalArgumentException("Entity id should be String, Integer or Long");
@@ -192,74 +202,64 @@ public class DefaultQueryGenerator implements QueryGenerator {
 
     private String generateQueryForFindOrDeleteById(Class<?> type, Serializable id, String action) {
         String tableName = getTableName(type);
-        Long incomeId = parseId(id);
         String columns = getColumns(type);
-        String foundNameColumnId = "";
-        for (String string : columns.split(", ")) {
-            if (isColumnId(string.toLowerCase())) {
-                foundNameColumnId = string;
-            }
-        }
+        String incomeId = parseId(id);
+        String condition = listOfIds.get(0);
+
         if (action.equals(DELETE)) {
             return getQuery(action,
-                    FROM, tableName, WHERE, foundNameColumnId, " = ", String.valueOf(incomeId), SEMICOLON);
+                    FROM, tableName, WHERE, condition, " = ", String.valueOf(incomeId), SEMICOLON);
         } else {
             return getQuery(action, columns,
-                    FROM, tableName, WHERE, foundNameColumnId, " = ", String.valueOf(incomeId), SEMICOLON);
+                    FROM, tableName, WHERE, condition, " = ", String.valueOf(incomeId), SEMICOLON);
         }
     }
 
     String getColumnsFromMap(Map<String, Object> map) {
-        StringJoiner stringJoiner = new StringJoiner(", ");
-        for (String key : map.keySet()) {
-            if (!isColumnId(key)) {
-                stringJoiner.add(key);
-            }
-        }
-        return stringJoiner.toString();
+        return map.keySet().stream()
+                .filter(column -> !isColumnId(column))
+                .collect(Collectors.joining(", "));
     }
 
     String getValuesFromMap(Map<String, Object> map) {
-        StringJoiner stringJoiner = new StringJoiner(", ");
-        for (String key : map.keySet()) {
-            if (!isColumnId(key)) {
-                Object value = map.get(key);
-                if (CharSequence.class.isAssignableFrom(value.getClass())) {
-                    stringJoiner.add("'" + value + "'");
-                } else {
-                    stringJoiner.add(String.valueOf(value));
-                }
-            }
-        }
-        return stringJoiner.toString();
+        return map.keySet().stream()
+                .filter(column -> !isColumnId(column))
+                .map(filteredColumn -> {
+                    Object value = map.get(filteredColumn);
+                    String valueToReturn;
+                    if (CharSequence.class.isAssignableFrom(value.getClass())) {
+                        valueToReturn = "'" + value + "'";
+                    } else {
+                        valueToReturn = String.valueOf(value);
+                    }
+                    return valueToReturn;
+                }).collect(Collectors.joining(", "));
     }
 
     String createSetForQueryFromMap(Map<String, Object> map) {
-        StringJoiner stringJoiner = new StringJoiner(", ");
-        for (String key : map.keySet()) {
-            if (!isColumnId(key)) {
-                Object value = map.get(key);
-                if (CharSequence.class.isAssignableFrom(value.getClass())) {
-                    stringJoiner.add(key + "=" + "'" + value + "'");
-                } else {
-                    stringJoiner.add(key + "=" + value);
-                }
-            }
-        }
-        return stringJoiner.toString();
+        return map.keySet().stream()
+                .filter(column -> !isColumnId(column))
+                .map(filteredColumn -> {
+                    Object value = map.get(filteredColumn);
+                    String valueToReturn;
+                    if (CharSequence.class.isAssignableFrom(value.getClass())) {
+                        valueToReturn = filteredColumn + "=" + "'" + value + "'";
+                    } else {
+                        valueToReturn = filteredColumn + "=" + value;
+                    }
+                    return valueToReturn;
+                }).collect(Collectors.joining(", "));
     }
 
     private boolean isColumnId(String key) {
-        return key.startsWith(ID[0]) | key.equals(ID[1]) | key.endsWith(ID[2]);
+        return key.equals(listOfIds.get(0));
     }
 
     String createConditionForQueryFromMap(Map<String, Object> map) {
 
-        for (String key : map.keySet()) {
-            if (isColumnId(key)) {
-                return key + "=" + map.get(key);
-            }
-        }
-        return "";
+        return map.keySet().stream()
+                .filter(this::isColumnId)
+                .map(filteredIdColumn -> filteredIdColumn + "=" + map.get(filteredIdColumn))
+                .collect(Collectors.joining());
     }
 }

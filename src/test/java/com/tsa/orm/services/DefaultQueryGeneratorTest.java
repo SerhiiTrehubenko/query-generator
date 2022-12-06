@@ -1,9 +1,6 @@
 package com.tsa.orm.services;
 
-import com.tsa.orm.entity.Guest;
-import com.tsa.orm.entity.MyUser;
-import com.tsa.orm.entity.SubGuest;
-import com.tsa.orm.entity.SubMyUser;
+import com.tsa.orm.entity.*;
 import com.tsa.orm.interfaces.QueryGenerator;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -71,7 +68,7 @@ class DefaultQueryGeneratorTest {
     void testFindByIdThrowsExceptionWhenIdIsNotStringLongInteger() {
         assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(Guest.class, 25.00),
                 "Entity id should be String, Integer or Long");
-        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(Guest.class, "lkjoi"),
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(Guest.class, 'l'),
                 "Entity id should be String, Integer or Long");
         assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(Guest.class, false),
                 "Entity id should be String, Integer or Long");
@@ -96,7 +93,7 @@ class DefaultQueryGeneratorTest {
     @DisplayName("Test deleteById(), when @Columns and @Table are not present. @Entity is present")
     @Test
     void testDeleteByIdColumnTableAnnotationsAreAbsent() {
-        String query = "DELETE  FROM myuser WHERE id = 5;";
+        String query = "DELETE FROM myuser WHERE id = 5;";
         String query2 = queryGenerator.deleteById(MyUser.class, "5");
         assertEquals(query, query2);
     }
@@ -104,7 +101,7 @@ class DefaultQueryGeneratorTest {
     @DisplayName("Test deleteById(), when @Columns, @Table and @Entity are present.")
     @Test
     void testDeleteByIdColumnTableAnnotationsArePresent() {
-        String query = "DELETE  FROM guest_table WHERE guest_id = 5;";
+        String query = "DELETE FROM guest_table WHERE guest_id = 5;";
         assertEquals(query, queryGenerator.deleteById(Guest.class, "5"));
     }
 
@@ -127,7 +124,7 @@ class DefaultQueryGeneratorTest {
     void testDeleteByIdThrowsExceptionWhenIdIsNotStringLongInteger() {
         assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(Guest.class, 25.00),
                 "Entity id should be String, Integer or Long");
-        assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(Guest.class, "lkjoi"),
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(Guest.class, 'i'),
                 "Entity id should be String, Integer or Long");
         assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(Guest.class, false),
                 "Entity id should be String, Integer or Long");
@@ -196,7 +193,7 @@ class DefaultQueryGeneratorTest {
     void testHierarchyClassColumnAndTableAnnotationsAreAbsent() {
         String queryFindAll = "SELECT id, name, password, salary FROM submyuser;";
         String queryFindById = "SELECT id, name, password, salary FROM submyuser WHERE id = 10;";
-        String queryDeleteById = "DELETE  FROM submyuser WHERE id = 10;";
+        String queryDeleteById = "DELETE FROM submyuser WHERE id = 10;";
         String queryInsert = "INSERT INTO submyuser (password, name, salary) VALUES ('126587', 'Mike', 1555.45);";
         String queryUpdate = "UPDATE submyuser SET password='126587', name='Mike', salary=1555.45 WHERE id=25;";
 
@@ -221,7 +218,7 @@ class DefaultQueryGeneratorTest {
     void testHierarchyClassColumnAndTableAnnotationsArePresent() {
         String queryFindAll = "SELECT guest_id, guest_name, guest_password, guest_salary, subguest_address FROM subguest;";
         String queryFindById = "SELECT guest_id, guest_name, guest_password, guest_salary, subguest_address FROM subguest WHERE guest_id = 60;";
-        String queryDeleteById = "DELETE  FROM subguest WHERE guest_id = 60;";
+        String queryDeleteById = "DELETE FROM subguest WHERE guest_id = 60;";
         String queryInsert = "INSERT INTO subguest (subguest_address, guest_name, guest_password, guest_salary) VALUES ('Dnipro', 'Oleg', 'password', 544.88);";
         String queryUpdate = "UPDATE subguest SET subguest_address='Dnipro', guest_name='Oleg', guest_password='password', guest_salary=544.88 WHERE guest_id=50;";
 
@@ -325,16 +322,16 @@ class DefaultQueryGeneratorTest {
     void testGetSuperClassesFromHierarchy() {
         String expected = "[class com.tsa.orm.entity.Guest, class com.tsa.orm.entity.SubGuest]";
         Deque<Class<?>> listOfSuperClasses = new ArrayDeque<>();
-        ((DefaultQueryGenerator) queryGenerator).getSuperClassesFromHierarchy(SubGuest.class, listOfSuperClasses);
+        ((DefaultQueryGenerator) queryGenerator).enrichWithSuperClassesFromHierarchy(SubGuest.class, listOfSuperClasses);
         assertEquals(expected, listOfSuperClasses.toString());
     }
 
     @DisplayName("Test parseId(), checks parameter to be String (which contains a decimal), Integer or Long")
     @Test
     void testParseId() {
-        Long expected = 10L;
+        String expected = "10";
 
-        assertEquals(expected, ((DefaultQueryGenerator) queryGenerator).parseId("asdflkjfu 10 asdf 50"));
+        assertEquals(expected, ((DefaultQueryGenerator) queryGenerator).parseId("10"));
         assertEquals(expected, ((DefaultQueryGenerator) queryGenerator).parseId(10));
         assertEquals(expected, ((DefaultQueryGenerator) queryGenerator).parseId(10L));
     }
@@ -346,7 +343,7 @@ class DefaultQueryGeneratorTest {
         assertThrows(IllegalArgumentException.class,
                 () -> ((DefaultQueryGenerator) queryGenerator).parseId(10.55));
         assertThrows(IllegalArgumentException.class,
-                () -> ((DefaultQueryGenerator) queryGenerator).parseId("asdfger"));
+                () -> ((DefaultQueryGenerator) queryGenerator).parseId('a'));
         assertThrows(IllegalArgumentException.class,
                 () -> ((DefaultQueryGenerator) queryGenerator).parseId(55.55F));
     }
@@ -587,6 +584,101 @@ class DefaultQueryGeneratorTest {
                 ((DefaultQueryGenerator) queryGenerator).createConditionForQueryFromMap(map));
     }
 
+    @DisplayName("test findAll(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testFindAllIdAbsent() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findAll(SubIdNil.class));
+    }
+
+    @DisplayName("test findById(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testFindByIdWhereIdAbsent() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(SubIdNil.class, 5));
+    }
+
+    @DisplayName("test deleteById(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testDeleteByIdWhereIdAbsent() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(SubIdNil.class, 5));
+    }
+
+    @DisplayName("test insert(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testInsertWhereIdAbsent() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.insert(new SubIdNil()));
+    }
+
+    @DisplayName("test update(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testUpdateWhereIdAbsent() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.update(new SubIdNil()));
+    }
+
+    @DisplayName("test findAll(), IllegalArgumentException when @Id more then one")
+    @Test
+    void testFindAllIdMoreThenOne() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findAll(SubMoreThanOneId.class));
+    }
+
+    @DisplayName("test findById(), IllegalArgumentException when @Id more then one")
+    @Test
+    void testFindByIdWhereIdMoreThenOne() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.findById(SubMoreThanOneId.class, 5));
+    }
+
+    @DisplayName("test deleteById(), IllegalArgumentException when @Id more then one")
+    @Test
+    void testDeleteByIdWhereIdMoreThenOne() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.deleteById(SubMoreThanOneId.class, 5));
+    }
+
+    @DisplayName("test insert(), IllegalArgumentException when @Id more then one")
+    @Test
+    void testInsertWhereIdMoreThenOne() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.insert(new SubMoreThanOneId()));
+    }
+
+    @DisplayName("test update(), IllegalArgumentException when @Id is absent")
+    @Test
+    void testUpdateWhereIdMoreThenOne() {
+        assertThrows(IllegalArgumentException.class, () -> queryGenerator.update(new SubMoreThanOneId()));
+    }
+
+    @Test
+    void testFindAllCustomId() {
+        String query = "SELECT professionalRate, name, position FROM worker;";
+
+        assertEquals(query, queryGenerator.findAll(Worker.class));
+    }
+
+    @Test
+    void testFindByCustomId() {
+        String query = "SELECT professionalRate, name, position FROM worker WHERE professionalRate = 1060;";
+
+        assertEquals(query, queryGenerator.findById(Worker.class, "1060"));
+    }
+
+    @Test
+    void testDeleteByCustomId() {
+        String query = "DELETE FROM worker WHERE professionalRate = 1060;";
+
+        assertEquals(query, queryGenerator.deleteById(Worker.class, "1060"));
+    }
+
+    @Test
+    void testInsertByCustomId() {
+        String query = "INSERT INTO worker (name, position) VALUES ('Mark', 'manager');";
+
+        assertEquals(query, queryGenerator.insert(createWorker()));
+    }
+
+    @Test
+    void testUpdateByCustomId() {
+        String query = "UPDATE worker SET name='Mark', position='manager' WHERE professionalRate=1060;";
+
+        assertEquals(query, queryGenerator.update(createWorker()));
+    }
+
     private MyUser createUser() {
         return new MyUser(5L, "Mike", "126587");
     }
@@ -601,5 +693,9 @@ class DefaultQueryGeneratorTest {
 
     private SubGuest createSubGuest() {
         return new SubGuest(50L, "Oleg", "password", 544.88, "Dnipro");
+    }
+
+    private Worker createWorker() {
+        return new Worker("1060", "Mark", "manager");
     }
 }

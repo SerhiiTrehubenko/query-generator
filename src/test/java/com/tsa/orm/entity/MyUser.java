@@ -1,15 +1,16 @@
 package com.tsa.orm.entity;
 
 import com.tsa.orm.annotation.Entity;
+import com.tsa.orm.annotation.Id;
 
 @Entity
 public class MyUser {
+    @Id
+    private final Long id;
 
-    private Long id;
+    private final String name;
 
-    private String name;
-
-    private String password;
+    private final String password;
 
     public MyUser(Long id, String name, String password) {
         this.id = id;

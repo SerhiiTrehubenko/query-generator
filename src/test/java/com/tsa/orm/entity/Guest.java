@@ -2,20 +2,21 @@ package com.tsa.orm.entity;
 
 import com.tsa.orm.annotation.Column;
 import com.tsa.orm.annotation.Entity;
+import com.tsa.orm.annotation.Id;
 import com.tsa.orm.annotation.Table;
 
 @Entity
 @Table(name = "Guest_Table")
 public class Guest {
-    @Column(name = "guest_id")
-    private Long id;
+    @Id(name = "guest_id")
+    private final Long id;
     @Column(name = "guest_name")
-    private String name;
+    private final String name;
     @Column(name = "guest_password")
-    private String password;
+    private final String password;
 
     @Column(name = "guest_salary")
-    private double salary;
+    private final double salary;
 
     public Guest(Long id, String name, String password, double salary) {
         this.id = id;
